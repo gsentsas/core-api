@@ -19,6 +19,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -40,7 +43,15 @@ jobs:
         sudo apt-get install -y libzip-dev libgd-dev libfreetype6-dev libjpeg-dev libpng-dev imagemagick libmagickwand-dev libmemcached-dev libgeos-dev libgmp-dev default-mysql-client libicu-dev
 
     - name: Configure Composer Auth for Github
-      run: composer config --global github-oauth.github.com ${{ secrets._GITHUB_AUTH_TOKEN }}
+      env:
+        GH_SECRET_TOKEN: ${{ secrets._GITHUB_AUTH_TOKEN }}
+        GH_JOB_TOKEN: ${{ github.token }}
+      run: |
+        if [ -n "$GH_SECRET_TOKEN" ]; then
+          composer config --global github-oauth.github.com "$GH_SECRET_TOKEN"
+        else
+          composer config --global github-oauth.github.com "$GH_JOB_TOKEN"
+        fi
 
     - name: Validate composer.json and composer.lock
       run: composer validate
