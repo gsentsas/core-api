@@ -26,7 +26,7 @@
         "giggsey/libphonenumber-for-php": "^8.13",
         "google/apiclient": "^2.18",
         "guzzlehttp/guzzle": "^7.4",
-        "hammerstone/fast-paginate": "^1.0",
+        "aaronfrancis/fast-paginate": "^2.0.0",
         "illuminate/broadcasting": "^12.0",
         "illuminate/contracts": "^12.0",
         "illuminate/database": "^12.0",
