@@ -82,6 +82,22 @@ class AddPerformanceIndexes extends Migration
      */
     protected function indexExists($table, $index)
     {
+        $schema = Schema::getConnection()->getSchemaBuilder();
+
+        // Laravel 10.34+ reads indexes natively. Laravel 11+ removed doctrine/dbal and
+        // getDoctrineSchemaManager(): the catch below then hid the error and reported every
+        // index as missing, so this migration re-created indexes the create migrations
+        // already define (MySQL 1061 "Duplicate key name"). Query errors now propagate.
+        if (method_exists($schema, 'getIndexes')) {
+            foreach ($schema->getIndexes($table) as $definition) {
+                if (strcasecmp($definition['name'], $index) === 0) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         try {
             $indexes = Schema::getConnection()
                 ->getDoctrineSchemaManager()
