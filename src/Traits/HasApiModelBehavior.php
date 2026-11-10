@@ -498,6 +498,18 @@ trait HasApiModelBehavior
             }
         });
 
+        // A single-record delete must honor the same tenant boundary as
+        // bulkRemove and direct reads. The previous path was unscoped.
+        if ($this->isColumn('company_uuid')) {
+            $companyUuid = session('company');
+            if (!$companyUuid && !app()->runningInConsole()) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
+            }
+            if ($companyUuid) {
+                $record->where($this->qualifyColumn('company_uuid'), $companyUuid);
+            }
+        }
+
         try {
             return $record->delete();
         } catch (\Exception $e) {
