@@ -20,6 +20,7 @@
     "require": {
         "php": "^8.2",
         "aws/aws-sdk-php-laravel": "^3.7",
+        "cknow/laravel-money": "v8.5.0",
         "fleetbase/countries": "^0.9.0",
         "fleetbase/laravel-mysql-spatial": "^2.0.0",
         "fleetbase/twilio": "^6.0.0",
@@ -67,7 +68,6 @@
         "xantios/mimey": "^2.2.0"
     },
     "require-dev": {
-        "cknow/laravel-money": "^7.2",
         "friendsofphp/php-cs-fixer": "3.82.2",
         "illuminate/translation": "^12.0",
         "illuminate/validation": "^12.0",

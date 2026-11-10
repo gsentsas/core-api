@@ -452,6 +452,10 @@ class ReportQueryExporter
      */
     protected function formatDate($value): string
     {
+        if (is_string($value) && strtotime($value) === false) {
+            return $value;
+        }
+
         try {
             return \Carbon\Carbon::parse($value)->format('Y-m-d');
         } catch (\Exception $e) {
@@ -464,6 +468,10 @@ class ReportQueryExporter
      */
     protected function formatDateTime($value): string
     {
+        if (is_string($value) && strtotime($value) === false) {
+            return $value;
+        }
+
         try {
             return \Carbon\Carbon::parse($value)->format('Y-m-d H:i:s');
         } catch (\Exception $e) {
