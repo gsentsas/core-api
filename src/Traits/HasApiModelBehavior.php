@@ -1333,13 +1333,19 @@ trait HasApiModelBehavior
                 }
             );
 
-        // Tenant constraint: scope to the caller's company when the model's table
-        // has a company_uuid column and a session is active. This clause is the
-        // only thing keeping the lookup inside the caller's tenant
-        // (GHSA-3wj9-hh56-7fw7).
+        // Tenant-owned HTTP lookups must fail closed when the caller has no
+        // active company. This is separate from CLI/queue execution, which has
+        // no HTTP session and may legitimately resolve records across companies.
+        // Never interpret a missing HTTP tenant as permission to drop the scope.
         $companyUuid = session('company');
-        if ($companyUuid && Schema::hasColumn($instance->getTable(), 'company_uuid')) {
-            $query->where($instance->qualifyColumn('company_uuid'), $companyUuid);
+        if (Schema::hasColumn($instance->getTable(), 'company_uuid')) {
+            if (!$companyUuid && !app()->runningInConsole()) {
+                throw (new \Illuminate\Database\Eloquent\ModelNotFoundException())->setModel(static::class, $id);
+            }
+
+            if ($companyUuid) {
+                $query->where($instance->qualifyColumn('company_uuid'), $companyUuid);
+            }
         }
 
         // more query modifications if callback supplied
