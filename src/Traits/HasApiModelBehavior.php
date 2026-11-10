@@ -399,8 +399,13 @@ trait HasApiModelBehavior
         // cross-tenant modification (GHSA-3wj9-hh56-7fw7). No global scope backs
         // this up — removing it reopens that vulnerability.
         $companyUuid = session('company');
-        if ($companyUuid && $this->isColumn('company_uuid')) {
-            $builder->where($this->qualifyColumn('company_uuid'), $companyUuid);
+        if ($this->isColumn('company_uuid')) {
+            if (!$companyUuid && !app()->runningInConsole()) {
+                throw (new \Illuminate\Database\Eloquent\ModelNotFoundException())->setModel(static::class, $id);
+            }
+            if ($companyUuid) {
+                $builder->where($this->qualifyColumn('company_uuid'), $companyUuid);
+            }
         }
 
         $builder = $this->applyDirectivesToQuery($request, $builder);
@@ -524,8 +529,14 @@ trait HasApiModelBehavior
         // prevent cross-tenant deletion (GHSA-3wj9-hh56-7fw7). No global scope
         // backs this up — removing it reopens that vulnerability.
         $companyUuid = session('company');
-        if ($companyUuid && $this->isColumn('company_uuid')) {
-            $records->where($this->qualifyColumn('company_uuid'), $companyUuid);
+        if ($this->isColumn('company_uuid')) {
+            if (!$companyUuid && !app()->runningInConsole()) {
+                // Bulk deletion without an established HTTP tenant is forbidden.
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
+            }
+            if ($companyUuid) {
+                $records->where($this->qualifyColumn('company_uuid'), $companyUuid);
+            }
         }
 
         $count = $records->count();
@@ -757,8 +768,13 @@ trait HasApiModelBehavior
         // the only thing keeping the lookup inside the caller's tenant
         // (GHSA-3wj9-hh56-7fw7).
         $companyUuid = session('company');
-        if ($companyUuid && $this->isColumn('company_uuid')) {
-            $builder->where($this->qualifyColumn('company_uuid'), $companyUuid);
+        if ($this->isColumn('company_uuid')) {
+            if (!$companyUuid && !app()->runningInConsole()) {
+                throw (new \Illuminate\Database\Eloquent\ModelNotFoundException())->setModel(static::class, $id);
+            }
+            if ($companyUuid) {
+                $builder->where($this->qualifyColumn('company_uuid'), $companyUuid);
+            }
         }
 
         if (is_callable($queryCallback)) {
