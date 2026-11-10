@@ -20,19 +20,17 @@ class AuthorizationGuard
     {
         $requiredPermissions = Auth::resolvePermissionsFromRequest($request);
         $user                = Auth::getUserFromSession($request);
-        // A protected endpoint may resolve zero permissions if an action is
-        // missing from the catalog. Zero is not an authorization grant.
-        // Preserve explicit SkipAuthorizationCheck endpoints and controllers
-        // for resources that are intentionally not role-guarded. Orders are
-        // always guarded, including when their entire catalog disappears.
-        if ($user->isNotAdmin() && !ControllerResolver::methodHasAttribute($request, SkipAuthorizationCheck::class)) {
+        // Every resource controller behind fleetbase.protected is
+        // permission-guarded by default. A missing/incomplete catalog must
+        // never silently turn a resource route into an open endpoint.
+        // Only an explicit method-level SkipAuthorizationCheck is exempt.
+        // Controllers without a resource contract retain their existing
+        // behavior until they can be classified and audited separately.
+        if ($user->isNotAdmin() && $requiredPermissions->isEmpty()) {
             $controller = $request->getController();
-            if (method_exists($controller, 'getResourceSingularName')) {
-                $resource = Auth::getPermissionResourceFromController($controller);
-                $guarded = $resource === 'order' || Auth::isResourceGuarded($resource);
-                if ($guarded && $requiredPermissions->isEmpty()) {
-                    return response()->authorizationError();
-                }
+            if (method_exists($controller, 'getResourceSingularName')
+                && !ControllerResolver::methodHasAttribute($request, SkipAuthorizationCheck::class)) {
+                return response()->authorizationError();
             }
         }
 
