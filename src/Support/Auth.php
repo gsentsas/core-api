@@ -187,6 +187,13 @@ class Auth extends Authentication
                 return false;
             }
 
+            // Never admit an API credential with no valid tenant context.
+            // The caller's company is derived from the credential, not from
+            // a request parameter. Reject before modifying session state.
+            if (!is_string($apiCredential->company_uuid) || !Str::isUuid($apiCredential->company_uuid)) {
+                return false;
+            }
+
             session([
                 'company'  => $apiCredential->company_uuid,
                 'user'     => $apiCredential->user_uuid,
@@ -197,6 +204,12 @@ class Auth extends Authentication
             $apiCredential->trackLastUsed();
 
             return true;
+        }
+
+        // Users without a valid tenant are not authenticated. This closes
+        // the path where setSession returned true with company=null.
+        if (!is_string($user->company_uuid ?? null) || !Str::isUuid($user->company_uuid)) {
+            return false;
         }
 
         session(['company' => $user->company_uuid, 'user' => $user->uuid, 'is_admin' => $user->isAdmin(), 'is_customer' => $user->isType('customer'), 'is_driver' => $user->isType('driver')]);
