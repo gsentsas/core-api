@@ -75,7 +75,7 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    public const MANAGED_TYPES = ['driver', 'customer', 'contact'];
+    public const MANAGED_TYPES = ['driver', 'customer', 'contact', 'navigator-device'];
 
     /**
      * Managed types that have no console surface at all. Customers are excluded
@@ -84,7 +84,7 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    public const SESSIONLESS_TYPES = ['driver', 'contact'];
+    public const SESSIONLESS_TYPES = ['driver', 'contact', 'navigator-device'];
 
     /**
      * The database connection to use.

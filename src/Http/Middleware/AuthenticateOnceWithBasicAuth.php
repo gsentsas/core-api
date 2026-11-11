@@ -5,6 +5,7 @@ namespace Fleetbase\Http\Middleware;
 use Fleetbase\Models\ApiCredential;
 use Fleetbase\Models\User;
 use Fleetbase\Support\Auth;
+use Fleetbase\Support\NavigatorCredentialScope;
 use Fleetbase\Support\Utils;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -94,17 +95,31 @@ class AuthenticateOnceWithBasicAuth
             return response()->error('Oops! The api credentials provided were not valid', 401);
         }
 
+        // Expiry is enforced before OPTIONS as well as ordinary requests.
+        if ($apiCredential->hasExpired()) {
+            return response()->error('Oops! These api credentials have expired', 401);
+        }
+
+        if (NavigatorCredentialScope::isNavigator($apiCredential)) {
+            if (!NavigatorCredentialScope::valid($apiCredential)) {
+                return response()->error('Oops! The api credentials provided were not valid', 401);
+            }
+            if (!NavigatorCredentialScope::allowsBootstrap($request)) {
+                return response()->error('Navigator provisioning credentials cannot access this resource.', 403);
+            }
+            $request->attributes->set('navigator_credential', $apiCredential);
+            $request->setUserResolver(static fn () => User::find($apiCredential->user_uuid));
+        } elseif ($apiCredential->user?->type === 'navigator-device') {
+            // A stripped/invalid scope discriminator cannot promote a device key.
+            return response()->error('Oops! The api credentials provided were not valid', 401);
+        }
+
         // If OPTIONS set api key and continue
         if ($request->isMethod('OPTIONS')) {
             // Set api credential session
             Auth::setApiKey($apiCredential);
 
             return true;
-        }
-
-        // If credentials have expired
-        if ($apiCredential->hasExpired()) {
-            return response()->error('Oops! These api credentials have expired', 401);
         }
 
         // Login user
@@ -140,6 +155,30 @@ class AuthenticateOnceWithBasicAuth
      */
     private function authenticateSanctumToken(PersonalAccessToken $sanctumToken, ?Request $request = null)
     {
+        if ($sanctumToken->expires_at && $sanctumToken->expires_at->lte(now())) {
+            return response()->error('Oops! The api credentials provided were not valid', 401);
+        }
+        if ($sanctumToken->tokenable instanceof User && $sanctumToken->tokenable->type === 'navigator-device') {
+            return response()->error('Oops! The api credentials provided were not valid', 401);
+        }
+        if ($sanctumToken->navigator_credential_uuid) {
+            $parent = NavigatorCredentialScope::parent($sanctumToken);
+            $driver = $sanctumToken->tokenable;
+            if (!$parent || !NavigatorCredentialScope::valid($parent)
+                || !$driver instanceof User || $driver->type !== 'driver' || $driver->status !== 'active'
+                || $driver->company_uuid !== $parent->company_uuid) {
+                return response()->error('Oops! The api credentials provided were not valid', 401);
+            }
+            $request?->attributes->set('navigator_credential', $parent);
+            $request?->setUserResolver(static fn () => $driver);
+            $controller = explode('@', $request?->route()?->getActionName() ?? '')[0];
+            if (!in_array($controller, [
+                'Fleetbase\\FleetOps\\Http\\Controllers\\Api\\v1\\DriverController',
+                'Fleetbase\\FleetOps\\Http\\Controllers\\Api\\v1\\OrderController',
+            ], true)) {
+                return response()->error('This resource is not authorized for the Navigator driver.', 403);
+            }
+        }
         if ($sanctumToken && $sanctumToken->tokenable instanceof User) {
             // Make sure company is set
             if (!Str::isUuid($sanctumToken->tokenable->company_uuid)) {
@@ -154,7 +193,7 @@ class AuthenticateOnceWithBasicAuth
             static::bindUserResolver($request, $sanctumToken->tokenable);
 
             // Get API Credential for User
-            $apiCredential = ApiCredential::where('company_uuid', $sanctumToken->tokenable->company_uuid)->first();
+            $apiCredential = $parent ?? ApiCredential::where('company_uuid', $sanctumToken->tokenable->company_uuid)->first();
             if ($apiCredential) {
                 // Set api credential session
                 Auth::setApiKey($apiCredential);

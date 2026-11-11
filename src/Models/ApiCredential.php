@@ -87,7 +87,7 @@ class ApiCredential extends Model
      */
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logOnly(['*'])->logOnlyDirty();
+        return LogOptions::defaults()->logOnly(['uuid', 'name', 'company_uuid', 'user_uuid', 'purpose', 'issuer_user_uuid', 'expires_at', 'deleted_at'])->logOnlyDirty();
     }
 
     /**
