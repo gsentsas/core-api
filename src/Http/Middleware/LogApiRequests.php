@@ -44,6 +44,21 @@ class LogApiRequests
         // Get the response
         $response = $next($request);
 
+        // Pairing/authentication responses can carry driver tokens. Record only
+        // identifiers and outcome, never their headers, bodies or query string.
+        $navigator = $request->attributes->get('navigator_credential');
+        if ($navigator instanceof \Fleetbase\Models\ApiCredential) {
+            Log::info('Navigator API request', [
+                'credential_uuid' => $navigator->uuid,
+                'company_uuid' => $navigator->company_uuid,
+                'method' => $request->method(),
+                'action' => $request->route()?->getActionName(),
+                'status' => $response->getStatusCode(),
+            ]);
+
+            return $response;
+        }
+
         // Determine if this request should be logged
         if ($this->shouldLog($request)) {
             $this->logApiRequest($request, $response);
