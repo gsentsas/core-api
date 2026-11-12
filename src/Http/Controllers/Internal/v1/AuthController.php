@@ -54,12 +54,14 @@ class AuthController extends Controller
         if ($authToken) {
             $personalAccessToken = PersonalAccessToken::findToken($authToken);
 
-            if ($personalAccessToken) {
+            if ($personalAccessToken && !$personalAccessToken->expires_at?->isPast()
+                && $personalAccessToken->created_at?->gt(now()->subMinutes($this->consoleTokenTtlMinutes()))) {
                 $personalAccessToken->loadMissing('tokenable');
                 $tokenOwner = $personalAccessToken->tokenable;
 
                 if (
                     $tokenOwner instanceof User
+                    && $tokenOwner->status === 'active'
                     && ($tokenOwner->email === $identity || $tokenOwner->phone === $identity)
                 ) {
                     if ($denied = Auth::denyConsoleLogin($tokenOwner)) {
@@ -98,7 +100,7 @@ class AuthController extends Controller
 
         // Use a generic error message for both non-existent user and wrong password
         // to prevent user enumeration via differential error responses.
-        if (!$user || Auth::isInvalidPassword($password, $user->password)) {
+        if (!$user || $user->status !== 'active' || Auth::isInvalidPassword($password, $user->password)) {
             return response()->error('These credentials do not match our records.', 401, ['code' => 'invalid_credentials']);
         }
 
@@ -118,7 +120,7 @@ class AuthController extends Controller
 
         // Login
         $user->updateLastLogin();
-        $token = $user->createToken($user->uuid);
+        $token = $user->createToken($user->uuid, ['*'], now()->addMinutes($this->consoleTokenTtlMinutes()));
 
         return response()->json(['token' => $token->plainTextToken, 'type' => $user->getType()]);
     }
@@ -182,9 +184,32 @@ class AuthController extends Controller
         $token = $request->bearerToken();
         Cache::forget("session_validation_{$token}");
 
+        // This public logout route has no sanctum middleware. Resolve exactly
+        // the presented bearer, then revoke it; SessionGuard::logout alone
+        // leaves a console's Sanctum personal access token usable.
+        if (is_string($token) && $token !== '') {
+            $personalAccessToken = PersonalAccessToken::findToken($token);
+            if ($personalAccessToken) {
+                Cache::forget("auth_bootstrap_{$personalAccessToken->tokenable_id}_{$token}");
+                $personalAccessToken->delete();
+            }
+        }
+
         Auth::logout();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['Goodbye']);
+    }
+
+    private function consoleTokenTtlMinutes(): int
+    {
+        $minutes = max(1, min(1440, (int) config('fleetbase.console.token_ttl_minutes', 120)));
+        $sanctum = config('sanctum.expiration');
+
+        return is_numeric($sanctum) && (int) $sanctum > 0 ? min($minutes, (int) $sanctum) : $minutes;
     }
 
     /**

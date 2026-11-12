@@ -15,6 +15,7 @@ return [
         ],
     ],
     'console' => [
+        'token_ttl_minutes' => env('CONSOLE_TOKEN_TTL_MINUTES', 120),
         'path'      => env('CONSOLE_PATH', '/fleetbase/console'),
         'host'      => env('CONSOLE_HOST', 'fleetbase.io'),
         'subdomain' => env('CONSOLE_SUBDOMAIN'),
